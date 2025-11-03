@@ -79,6 +79,14 @@ jobs:
           - platform: "windows-latest"
             target: "x86_64-pc-windows-msvc"
 
+          # macOS Intel (x86_64)
+          - platform: "macos-latest"
+            target: "x86_64-apple-darwin"
+
+          # Windows ARM64
+          - platform: "windows-latest"
+            target: "aarch64-pc-windows-msvc"
+
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
