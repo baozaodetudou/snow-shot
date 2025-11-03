@@ -76,6 +76,10 @@ jobs:
           - platform: "macos-latest"
             target: "aarch64-apple-darwin"
 
+          # macOS Intel x64
+          - platform: "macos-13"
+            target: "x86_64-apple-darwin"
+
           - platform: "windows-latest"
             target: "x86_64-pc-windows-msvc"
 
@@ -188,7 +192,7 @@ jobs:
 
       # 下载并配置 onnxruntime (macOS only)
       - name: Download and setup onnxruntime (macOS)
-        if: matrix.platform == 'macos-latest'
+        if: runner.os == 'macOS'
         run: |
           # 下载 onnxruntime
           curl -L -o onnxruntime.tgz "https://github.com/supertone-inc/onnxruntime-build/releases/download/v1.22.2/onnxruntime-osx-universal2-static_lib-1.22.2.tgz"
@@ -214,7 +218,7 @@ jobs:
 
       # macOS 专用：配置构建环境
       - name: Configure build environment (macOS)
-        if: matrix.platform == 'macos-latest'
+        if: runner.os == 'macOS'
         run: |
           # 设置环境变量强制静态链接
           echo "PKG_CONFIG_ALL_STATIC=1" >> $GITHUB_ENV
