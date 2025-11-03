@@ -173,8 +173,16 @@ jobs:
       - name: Download and setup onnxruntime (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
+          # 根据目标架构选择 onnxruntime 压缩包（x64 或 ARM64）
+          $target = "${{ matrix.target }}"
+          if ($target -eq "aarch64-pc-windows-msvc") {
+            $onnxUrl = "https://github.com/supertone-inc/onnxruntime-build/releases/download/v1.22.2/onnxruntime-win-arm64-static_lib-1.22.2.zip"
+          } else {
+            $onnxUrl = "https://github.com/supertone-inc/onnxruntime-build/releases/download/v1.22.2/onnxruntime-win-x64-static_lib-1.22.2.zip"
+          }
+
           # 下载 onnxruntime
-          Invoke-WebRequest -Uri "https://github.com/supertone-inc/onnxruntime-build/releases/download/v1.22.2/onnxruntime-win-x64-static_lib-1.22.2.zip" -OutFile "onnxruntime.zip"
+          Invoke-WebRequest -Uri $onnxUrl -OutFile "onnxruntime.zip"
           
           # 解压文件
           Expand-Archive -Path "onnxruntime.zip" -DestinationPath "onnxruntime-temp" -Force
