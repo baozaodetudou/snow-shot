@@ -519,17 +519,18 @@ void builtInCatalogIsCompleteAndValid() {
                     const auto& select = std::get<settings::SettingsSelectDefinition>(item.payload);
 #ifdef Q_OS_MACOS
                     require(select.binding == settings::SettingsSelectBinding::UpdateMode &&
-                                select.options.size() == 2 &&
+                                select.options.size() == 3 &&
                                 select.options[0].value == QStringLiteral("manual") &&
                                 select.options[1].value == QStringLiteral("check") &&
+                                select.options[2].value == QStringLiteral("download") &&
                                 storage::ConfigurationSchema::defaultValue(item.configurationKey) ==
                                     QStringLiteral("check"),
-                            "macOS exposes only manual and automatic checks");
+                            "macOS exposes manual, automatic checks, and automatic downloads");
                     const auto migrated = storage::ConfigurationSchema::normalize(
                         item.configurationKey, QStringLiteral("download"));
-                    require(migrated.valid && migrated.changed &&
-                                migrated.value == QStringLiteral("check"),
-                            "legacy automatic download migrates to check");
+                    require(migrated.valid && !migrated.changed &&
+                                migrated.value == QStringLiteral("download"),
+                            "macOS automatic download remains available");
                     const auto nextLaunch = storage::ConfigurationSchema::normalize(
                         item.configurationKey, QStringLiteral("next_launch"));
                     require(nextLaunch.valid && nextLaunch.changed &&

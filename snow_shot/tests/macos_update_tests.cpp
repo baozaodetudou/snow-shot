@@ -1,9 +1,12 @@
 #include "snow_shot/update/updateservice.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QEventLoop>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -16,6 +19,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QUrlQuery>
 #include <cstdio>
@@ -152,6 +156,21 @@ QJsonArray giteeAssets(const QString& version) {
                  "https://gitee.com/mg-chao/snow-apps/releases/download/v%1_snow-shot/%2")
                  .arg(version, asset)}});
     return assets;
+}
+QJsonObject localGithubRelease(const QString& version, const Server& server) {
+    auto release = githubRelease(version);
+    auto assets = release.value(QStringLiteral("assets")).toArray();
+    const QString prefix = QStringLiteral("http://127.0.0.1:%1/download/v%2_snow-shot/")
+                               .arg(server.server.serverPort())
+                               .arg(version);
+    for (qsizetype i = 0; i < assets.size(); ++i) {
+        auto asset = assets.at(i).toObject();
+        asset.insert(QStringLiteral("browser_download_url"),
+                     prefix + asset.value(QStringLiteral("name")).toString());
+        assets.replace(i, asset);
+    }
+    release.insert(QStringLiteral("assets"), assets);
+    return release;
 }
 void setGithub(Server& server, const QJsonArray& releases) {
     server.bodies.insert("/releases", QJsonDocument(releases).toJson());
@@ -590,7 +609,7 @@ void schedulingAndFailures() {
     service.start();
     pump(30);
     require(github.requests.isEmpty() && gitee.requests.isEmpty(), "manual mode does not check");
-    service.setMode(QStringLiteral("download"));
+    service.setMode(QStringLiteral("check"));
     waitFor([&] { return notices == 1; });
     require(service.status().state == UpdateState::Available, "automatic check finds release");
     service.setMode(QStringLiteral("manual"));
@@ -598,10 +617,10 @@ void schedulingAndFailures() {
     pump(120);
     require(github.requests.size() + gitee.requests.size() == count,
             "manual mode stops scheduled checks");
-    service.download();
     service.beginApply();
     service.requestRestart();
-    require(service.status().state == UpdateState::Available, "macOS does not install in app");
+    require(service.status().state == UpdateState::Available,
+            "macOS waits for a verified package before applying an update");
 
     github.status = 503;
     gitee.status = 503;
@@ -625,6 +644,36 @@ void schedulingAndFailures() {
     pump(100);
     require(service.status().state == UpdateState::Failed, "late responses cannot replace status");
 }
+void downloadAndVerifyPackage() {
+    Server github;
+    Server gitee;
+    gitee.heldTargets.insert("/releases");
+    const QByteArray package("deterministic dmg fixture");
+    const QString version = QStringLiteral("2.1.0");
+    setGithub(github, QJsonArray{localGithubRelease(version, github)});
+    github.bodies.insert(
+        (QStringLiteral("/download/v2.1.0_snow-shot/") + assetName(version)).toUtf8(), package);
+    github.bodies.insert((QStringLiteral("/download/v2.1.0_snow-shot/") + assetName(version) +
+                          QStringLiteral(".sha256"))
+                             .toUtf8(),
+                         QCryptographicHash::hash(package, QCryptographicHash::Sha256).toHex() +
+                             "  " + assetName(version).toUtf8() + "\n");
+    QTemporaryDir cache;
+    require(cache.isValid(), "update cache fixture is created");
+    auto value = options(github, gitee);
+    value.cacheDirectory = cache.path();
+    UpdateService service(value);
+    service.setMode(QStringLiteral("download"));
+    service.start();
+    waitFor([&] { return service.status().state == UpdateState::Ready; });
+    require(service.status().state == UpdateState::Ready &&
+                service.status().downloadUrl.host() == u"127.0.0.1" &&
+                service.status().received == package.size(),
+            "macOS automatic mode downloads and verifies the package checksum");
+    require(QFileInfo(QDir(cache.path()).filePath(assetName(version))).isFile(),
+            "verified package is persisted in the update cache");
+    service.cancel();
+}
 } // namespace
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
@@ -637,5 +686,6 @@ int main(int argc, char** argv) {
     cancellationAndDestructionAfterPagination();
     sourceFailureAndTimeout();
     responseLimit();
+    downloadAndVerifyPackage();
     return 0;
 }

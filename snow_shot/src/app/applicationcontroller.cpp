@@ -387,7 +387,6 @@ class ApplicationController::Impl {
                                "Snow Shot %1 is available. Open About for update options.")
                                .arg(version)));
             });
-#ifndef Q_OS_MACOS
         QObject::connect(updates, &update::UpdateService::updateReady, &q, [this] {
             systemTray.showUpdateMessage(
                 (edition::isMini
@@ -397,7 +396,6 @@ class ApplicationController::Impl {
                      : ApplicationController::tr(
                            "An update is ready. Open About to restart and update Snow Shot.")));
         });
-#endif
         platform::windows::setAdministratorRestartGuard([this] { return restartAllowed(); });
 #ifdef Q_OS_WIN
         migrationInput = new ApplicationInputGuard(&q);

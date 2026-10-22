@@ -188,6 +188,10 @@
             <translation>Could not restart the update download</translation>
         </message>
         <message>
+            <source>Could not save the update package</source>
+            <translation>Could not save the update package</translation>
+        </message>
+        <message>
             <source>Could not save the verified update</source>
             <translation>Could not save the verified update</translation>
         </message>

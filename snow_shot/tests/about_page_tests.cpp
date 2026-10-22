@@ -440,14 +440,12 @@ void updatePolicyAndUnavailableCopy() {
 #ifdef Q_OS_MACOS
     require(backend.selectValue(binding).toString() == QStringLiteral("check"),
             "macOS defaults to automatic checks");
-    for (const QString& value : {QStringLiteral("manual"), QStringLiteral("check")}) {
+    for (const QString& value :
+         {QStringLiteral("manual"), QStringLiteral("check"), QStringLiteral("download")}) {
         require(backend.applySelectValue(binding, value) &&
                     backend.selectValue(binding).toString() == value,
-                "macOS check policies round-trip");
+                "macOS update policies round-trip");
     }
-    require(backend.applySelectValue(binding, QStringLiteral("download")) &&
-                backend.selectValue(binding).toString() == QStringLiteral("check"),
-            "legacy policy maps to check");
     snow_shot::update::UpdateService updates({});
     QList<QUrl> opened;
     AboutPageWidget page(
@@ -469,18 +467,10 @@ void updatePolicyAndUnavailableCopy() {
         QUrl(QStringLiteral("https://github.com/mg-chao/snow-apps/releases/tag/v2.0.0_snow-shot"))};
     updates.statusChanged();
     auto* action = child<adqt::widgets::AdButton>(page, "aboutUpdateAction");
-    require(action->text() == QStringLiteral("Download from GitHub"),
-            "About explains external download");
+    require(action->text() == QStringLiteral("Download update"), "About offers an in-app download");
     action->click();
-    require(opened == QList<QUrl>{status.downloadUrl}, "About opens the exact GitHub release");
-    status.downloadUrl =
-        QUrl(QStringLiteral("https://gitee.com/mg-chao/snow-apps/releases/tag/v2.0.0_snow-shot"));
-    emit updates.statusChanged();
-    flushEvents();
-    require(action->text() == QStringLiteral("Download from Gitee"),
-            "About identifies Gitee release");
-    action->click();
-    require(opened.last() == status.downloadUrl, "About opens the exact Gitee release");
+    require(opened.isEmpty() && status.state == snow_shot::update::UpdateState::Failed,
+            "About starts the in-app download without opening a browser");
 #else
     require(backend.selectValue(binding).toString() == QStringLiteral("download"),
             "automatic download is the default update policy");

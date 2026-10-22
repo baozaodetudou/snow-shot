@@ -13,7 +13,8 @@ Priorities: data preservation and authenticity > recovery > testability > mainta
 
 The first updater release is `1.0.0-beta`. Binaries without an updater require one manual
 installation/replacement. This release introduces no user-data migration, delta patches,
-macOS in-app installation, or OCR model-host deployment.
+or OCR model-host deployment. macOS in-app installation uses the verified DMG handoff
+described below and does not use the Windows Rust updater.
 
 ## GitHub and Gitee release channels
 
@@ -33,10 +34,17 @@ package URL, so a source change starts a fresh transfer. A failed mirror never c
 the published GitHub release.
 
 The macOS Qt updater races the same release APIs. It requires an exact architecture DMG
-and matching `.sha256` asset before offering the update; About opens the winning
-release page. The standalone installer races both lists and downloads the chosen DMG
-and checksum, with same-version package fallback. The app does not install macOS
-updates in-app.
+and matching `.sha256` asset before offering the update, downloads both files in the
+background, verifies the SHA-256 digest, and hands the DMG to the bundled installer.
+The installer waits for Snow Shot to exit, replaces the current bundle transactionally,
+and reuses the persistent local signing identity so Screen Recording and Accessibility
+permissions remain attached to the app's designated requirement. If the identity is
+missing or the current app was installed outside the supported path, the update stops
+with a repairable error instead of silently replacing the app. The standalone installer
+still races both release lists for first-time installation and same-version package
+fallback. On macOS, `manual` checks only when requested, `check` performs scheduled
+metadata checks, and `download` also downloads verified packages in the background;
+every installation still requires an explicit restart confirmation.
 
 Build and package application binaries locally with `scripts/build.ps1`,
 `scripts/stage-snow-shot-release.ps1`, or the macOS build and packaging scripts.
@@ -316,8 +324,9 @@ physical storage failure.
 The Rust updater uses native platform TLS, Tokio/Reqwest, Serde, RSA/SHA-256, SemVer, and
 ZIP/Deflate without linking Qt or minizip. Windows release packages use the static CRT and a
 dedicated size profile with fat LTO, one codegen unit, aborting panics, overflow checks, and
-external CodeView/PDB information. macOS uses the Qt release-discovery service
-and opens the verified release page for manual installation.
+external CodeView/PDB information. macOS uses the Qt release-discovery service and the
+bundled installer for verified DMG replacement; no Rust updater binary is shipped in the
+macOS bundle.
 
 ## Operator setup and commands
 
@@ -721,17 +730,20 @@ verification of both channels' asset bytes.
 
 ## macOS version checks
 
-macOS offers **Manual** and **Check automatically**, defaulting to automatic
-checks. Automatic checks start 30 seconds after launch and repeat 24 hours
+macOS offers **Manual**, **Check automatically**, and **Download automatically**,
+defaulting to automatic checks. Automatic checks start 30 seconds after launch and repeat 24 hours
 after completion; About can trigger a manual check. The service starts GitHub
 and Gitee release requests together, accepts published previews, and ignores
 drafts. Each release must have a versioned DMG and checksum asset for the
 machine architecture with exact release download URLs. Within a channel it
 selects the newest valid SemVer release; the first validated channel wins.
-A newer winning version produces an About download action for that release
-host and a once-per-session automatic notification. Background failures
-remain quiet; manual failures offer retry. macOS does not install updates
-in-app.
+A newer winning version produces an About download action and a notification.
+In download mode, the app downloads the DMG and checksum in the background and
+verifies both before showing “Ready to install”; check mode waits for the About
+action. The bundled installer starts only after the user confirms a restart.
+Background failures remain quiet; manual failures offer retry. The installer reuses
+the persistent local signing identity required to keep macOS privacy permissions
+attached to the app.
 
 ## Homebrew tap publication
 

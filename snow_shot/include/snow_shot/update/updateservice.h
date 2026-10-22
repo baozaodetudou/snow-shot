@@ -33,8 +33,9 @@ struct UpdateStatus {
     QUrl downloadUrl = {};
 };
 
-// Windows delegates installation to the updater helper. macOS checks releases over HTTPS
-// and leaves package downloads and installation to the selected release host.
+// Windows delegates installation to the updater helper. macOS downloads and verifies the
+// architecture-specific DMG, then hands it to the bundled installer so the persistent local
+// signing identity and macOS privacy permissions survive an update.
 class UpdateService final : public QObject {
     Q_OBJECT
   public:

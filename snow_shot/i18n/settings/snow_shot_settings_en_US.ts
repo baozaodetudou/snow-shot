@@ -1600,10 +1600,6 @@
             <translation>Check automatically</translation>
         </message>
         <message>
-            <source>Check for new versions on GitHub and Gitee</source>
-            <translation>Check for new versions on GitHub and Gitee</translation>
-        </message>
-        <message>
             <source>Child elements</source>
             <translation>Child elements</translation>
         </message>

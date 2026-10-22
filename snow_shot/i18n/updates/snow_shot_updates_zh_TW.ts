@@ -188,6 +188,10 @@
             <translation>無法重新開始下載更新</translation>
         </message>
         <message>
+            <source>Could not save the update package</source>
+            <translation>無法儲存更新軟體套件</translation>
+        </message>
+        <message>
             <source>Could not save the verified update</source>
             <translation>無法儲存已驗證的更新</translation>
         </message>

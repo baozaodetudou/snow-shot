@@ -13,6 +13,7 @@ local_dmg=''
 prepare_app=''
 prepare_owned=0
 prepare_committed=0
+wait_pid=''
 work=''
 mount_dir=''
 package_mounted=0
@@ -23,7 +24,7 @@ committed=0
 replacement_started=0
 had_previous=0
 needs_sudo=0
-destination='/Applications/Snow Shot.app'
+destination=''
 previous_destination=''
 github_pid=''
 gitee_pid=''
@@ -32,8 +33,8 @@ metadata_pid=''
 message() {
     local en cn tw
     case "$1" in
-        usage) en='Usage: install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg PATH] [--prepare-app PATH] [--help]'; cn='用法：install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg 路径] [--prepare-app 路径] [--help]'; tw='用法：install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg 路徑] [--prepare-app 路徑] [--help]' ;;
-        help) en='Downloads, verifies, locally signs, and installs Snow Shot. --dmg requires PATH.sha256. --prepare-app requires --dmg and a fresh absolute .app path; it stages a signed app without installing or launching. --no-launch skips launching. --lang overrides automatic language selection. First installation requires macOS privacy authorization.'; cn='下载、验证、本地签名并安装 Snow Shot。--dmg 需要对应的 PATH.sha256 文件。--prepare-app 需要 --dmg 和尚不存在的绝对 .app 路径；仅暂存签名后的应用，不安装或启动。--no-launch 跳过启动。--lang 指定界面语言。首次安装需要授予 macOS 隐私权限。'; tw='下載、驗證、本機簽署並安裝 Snow Shot。--dmg 需要對應的 PATH.sha256 檔案。--prepare-app 需要 --dmg 和尚不存在的絕對 .app 路徑；僅暫存簽署後的應用程式，不安裝或啟動。--no-launch 跳過啟動。--lang 指定介面語言。首次安裝需要授予 macOS 隱私權限。' ;;
+        usage) en='Usage: install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg PATH] [--wait-pid PID] [--destination APP] [--prepare-app PATH] [--help]'; cn='用法：install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg 路径] [--wait-pid PID] [--destination 应用路径] [--prepare-app 路径] [--help]'; tw='用法：install-snow-shot-macos.sh [--edition full|mini] [--lang auto|en|zh-CN|zh-TW] [--no-launch] [--dmg 路徑] [--wait-pid PID] [--destination 應用程式路徑] [--prepare-app 路徑] [--help]' ;;
+        help) en='Downloads, verifies, locally signs, and installs Snow Shot. --dmg requires PATH.sha256. --wait-pid waits for the launching app to exit before replacing it. --destination selects the current app bundle for in-app updates. --prepare-app requires --dmg and a fresh absolute .app path; it stages a signed app without installing or launching. --no-launch skips launching. --lang overrides automatic language selection. First installation requires macOS privacy authorization.'; cn='下载、验证、本地签名并安装 Snow Shot。--dmg 需要对应的 PATH.sha256 文件。--wait-pid 会在替换应用前等待启动安装器的应用退出。--destination 指定应用内更新要替换的应用路径。--prepare-app 需要 --dmg 和尚不存在的绝对 .app 路径；仅暂存签名后的应用，不安装或启动。--no-launch 跳过启动。--lang 指定界面语言。首次安装需要授予 macOS 隐私权限。'; tw='下載、驗證、本機簽署並安裝 Snow Shot。--dmg 需要對應的 PATH.sha256 檔案。--wait-pid 會在取代應用程式前等待啟動安裝程式的應用程式結束。--destination 指定應用程式內更新要取代的應用程式路徑。--prepare-app 需要 --dmg 和尚不存在的絕對 .app 路徑；僅暫存簽署後的應用程式，不安裝或啟動。--no-launch 跳過啟動。--lang 指定介面語言。首次安裝需要授予 macOS 隱私權限。' ;;
         arguments) en='Invalid or incomplete option. Run with --help.'; cn='选项无效或不完整。请使用 --help 查看帮助。'; tw='選項無效或不完整。請使用 --help 查看說明。' ;;
         platform) en='Snow Shot requires macOS 15 or later on Apple Silicon or Intel.'; cn='Snow Shot 需要运行 macOS 15 或更新版本的 Apple Silicon 或 Intel Mac。'; tw='Snow Shot 需要執行 macOS 15 或更新版本的 Apple Silicon 或 Intel Mac。' ;;
         root) en='Run this script as your desktop user, without sudo. Administrator access is requested only when needed.'; cn='请以当前桌面用户运行脚本，不要直接使用 root。仅在需要时请求管理员权限。'; tw='請以目前桌面使用者執行指令碼，不要直接使用 root。僅在需要時請求管理員權限。' ;;
@@ -489,11 +490,24 @@ sign_application() {
 }
 
 installed_pids() {
-    pgrep -f "^/Applications/($product_name|$product_executable)[.]app/Contents/MacOS/$product_executable( |$)" || [[ $? == 1 ]]
+    local executable_path="$destination/Contents/MacOS/$product_executable"
+    pgrep -f "^$executable_path( |$)" || [[ $? == 1 ]]
+}
+
+wait_for_caller() {
+    [[ -z "$wait_pid" ]] && return 0
+    [[ "$wait_pid" =~ ^[0-9]+$ && "$wait_pid" != "$$" ]] || die arguments
+    local attempt
+    for ((attempt=0; attempt<300; attempt++)); do
+        kill -0 "$wait_pid" 2>/dev/null || return 0
+        sleep 0.1
+    done
+    die running
 }
 
 quit_installed() {
     local pids attempt
+    wait_for_caller
     pids=$(installed_pids)
     [[ -n "$pids" ]] || return 0
     say quit
@@ -620,6 +634,8 @@ main() {
             --lang) [[ $# -ge 2 ]] || die arguments; language="$2"; shift 2 ;;
             --no-launch) launch=0; shift ;;
             --dmg) [[ $# -ge 2 && -n "$2" ]] || die arguments; local_dmg="$2"; shift 2 ;;
+            --wait-pid) [[ $# -ge 2 && -n "$2" ]] || die arguments; wait_pid="$2"; shift 2 ;;
+            --destination) [[ $# -ge 2 && -n "$2" ]] || die arguments; destination="$2"; shift 2 ;;
             --prepare-app) [[ $# -ge 2 && -n "$2" ]] || die arguments; prepare_app="$2"; shift 2 ;;
             --help|-h) help=1; shift ;;
             *) select_language; die arguments ;;
@@ -631,7 +647,8 @@ main() {
         mini) product_name="Snow Shot Mini"; product_slug=snow-shot-mini; product_executable=snow_shot_mini; product_bundle_id=com.snowshot.snow_shot_mini ;;
         *) die arguments ;;
     esac
-    destination="/Applications/$product_name.app"
+    [[ -n "$destination" ]] || destination="/Applications/$product_name.app"
+    [[ "$destination" == /*.app && ! -L "$destination" ]] || die arguments
     select_language
     if [[ "$help" == 1 ]]; then message usage; message help; return; fi
     if [[ -n "$prepare_app" ]]; then validate_prepare_output; fi

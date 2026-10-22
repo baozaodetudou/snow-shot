@@ -117,6 +117,12 @@ add_custom_command(TARGET snow_shot POST_BUILD
 install(PROGRAMS "${SNOW_CRASHPAD_HANDLER}"
     DESTINATION "snow_shot.app/Contents/MacOS" COMPONENT SnowShot)
 
+# The in-app updater delegates the final bundle replacement to the same verified installer
+# used for first-time installs. Keeping this script inside the signed bundle preserves one
+# release contract and lets it reuse the user's persistent local signing identity.
+install(PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/install-snow-shot-macos.sh"
+    DESTINATION "snow_shot.app/Contents/Resources" COMPONENT SnowShot)
+
 # Archive UUID-matched symbols outside the app bundle for offline symbolication.
 find_program(SNOW_DSYMUTIL dsymutil REQUIRED)
 if(TARGET snow_ocr_process)
